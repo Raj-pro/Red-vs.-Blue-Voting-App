@@ -1,0 +1,22 @@
+# 06-redis-service.yaml
+# Purpose: ClusterIP service — Redis only accessible INSIDE the cluster
+# This is the DEFAULT service type in Kubernetes
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-service
+  namespace: voting-system
+  labels:
+    app: redis
+    tier: backend
+  annotations:
+    description: "Internal ClusterIP — Redis not exposed externally by design"
+spec:
+  type: ClusterIP              # Default — no external access, only in-cluster DNS
+  selector:
+    app: redis
+  ports:
+    - name: redis
+      protocol: TCP
+      port: 6379               # Service port
+      targetPort: 6379         # Container port

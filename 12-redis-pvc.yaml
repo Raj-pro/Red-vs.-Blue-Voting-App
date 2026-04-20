@@ -1,0 +1,17 @@
+# 12-redis-pvc.yaml
+# Purpose: Claim storage for Redis — binds to the PV above
+# Think of it as: PV = the actual disk, PVC = the reservation ticket
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: redis-pvc
+  namespace: voting-system
+  labels:
+    app: redis
+spec:
+  storageClassName: manual
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi              # Must be <= PV capacity

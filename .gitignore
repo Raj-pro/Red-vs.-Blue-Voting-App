@@ -1,0 +1,88 @@
+# ── Terraform ────────────────────────────────────────────────────────────────
+
+# Local .terraform directory (downloaded providers, modules)
+**/.terraform/
+
+# Terraform lock file — commit this to pin provider versions
+# !.terraform.lock.hcl
+
+# State files — NEVER commit these (contain sensitive output values)
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+
+# Crash log
+crash.log
+crash.*.log
+
+# Vars files — may contain secrets (keys, passwords, IPs)
+# terraform.tfvars is intentionally excluded; commit .tfvars.example instead
+terraform.tfvars
+*.auto.tfvars
+*.auto.tfvars.json
+
+# Override files (local dev overrides)
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Plan output files
+*.tfplan
+*.plan
+
+# CLI config
+.terraformrc
+terraform.rc
+
+# ── AWS / Credentials ────────────────────────────────────────────────────────
+.aws/
+*.pem
+*.key
+*.crt
+*_rsa
+*_rsa.pub
+*_ed25519
+*_ed25519.pub
+*.ppk
+
+# ── Kubernetes ───────────────────────────────────────────────────────────────
+
+# kubeconfig — contains cluster credentials
+kubeconfig
+kubeconfig.*
+.kube/
+
+# Kubernetes secrets (base64 encoded but still sensitive)
+*-secret.yaml
+*secret*.yaml
+
+# Helm chart dependencies
+charts/
+*.tgz
+
+# ── OS ───────────────────────────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+
+# ── Editor / IDE ─────────────────────────────────────────────────────────────
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+*~
+
+# VS Code workspace files (machine-specific)
+*.code-workspace
+
+# ── Logs & temp files ────────────────────────────────────────────────────────
+*.log
+*.tmp
+*.bak
+*.zip
+*.tar.gz

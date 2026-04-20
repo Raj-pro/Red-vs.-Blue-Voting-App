@@ -1,0 +1,43 @@
+# 17-hpa-blue.yaml
+# Purpose: Auto-scale Blue Team pods based on CPU usage
+# Requires: metrics-server installed on cluster
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: blue-team-hpa
+  namespace: voting-system
+  labels:
+    app: votevibe-blue
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: blue-team-deployment
+  minReplicas: 2               # Never go below 2 (HA requirement)
+  maxReplicas: 8               # Max 8 pods under heavy load
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 60    # Scale up if avg CPU > 60%
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 70    # Scale up if avg memory > 70%
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 30    # Wait 30s before scaling up again
+      policies:
+        - type: Pods
+          value: 2
+          periodSeconds: 30             # Add max 2 pods per 30s
+    scaleDown:
+      stabilizationWindowSeconds: 120   # Wait 2min before scaling down
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 60             # Remove max 1 pod per 60s

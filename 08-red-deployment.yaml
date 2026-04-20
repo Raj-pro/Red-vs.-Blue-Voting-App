@@ -1,0 +1,172 @@
+# 08-red-deployment.yaml
+# Purpose: Deploy the Red Team voting frontend with Redis integration
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: red-team-deployment
+  namespace: voting-system
+  labels:
+    app: votevibe-red
+    tier: frontend
+    team: red
+    version: "1.0"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: votevibe-red
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: votevibe-red
+        tier: frontend
+        team: red
+    spec:
+      containers:
+        - name: votevibe-red
+          image: python:3.11-slim
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              pip install flask gunicorn redis --quiet &&
+              cat > /app.py << 'PYEOF'
+              import os
+              import redis as redislib
+              from flask import Flask, render_template_string, redirect
+
+              app = Flask(__name__)
+
+              TEAM_NAME  = os.environ.get("TEAM_NAME",  "Red Team")
+              BG_COLOR   = os.environ.get("BG_HEX",     "#7f0000")
+              ACCENT     = os.environ.get("ACCENT_HEX", "#ef5350")
+              REDIS_HOST = os.environ.get("REDIS_HOST", "redis-service")
+              REDIS_PORT = int(os.environ.get("REDIS_PORT", "6379"))
+              REDIS_PASS = os.environ.get("REDIS_PASSWORD", None)
+              VOTE_KEY   = os.environ.get("VOTE_KEY", "red_votes")
+
+              # Connect to Redis (graceful degradation if unavailable)
+              try:
+                  r = redislib.Redis(host=REDIS_HOST, port=REDIS_PORT,
+                                     password=REDIS_PASS, decode_responses=True,
+                                     socket_connect_timeout=3)
+                  r.ping()
+                  REDIS_OK = True
+              except Exception as e:
+                  print(f"Redis connection failed: {e}")
+                  r = None
+                  REDIS_OK = False
+
+              TEMPLATE = """
+              <!DOCTYPE html><html><head><title>VoteVibe - {{ nm }}</title>
+              <style>
+              *{margin:0;padding:0;box-sizing:border-box}
+              body{background:{{ bg }};font-family:sans-serif;min-height:100vh;
+                   display:flex;align-items:center;justify-content:center;color:white}
+              .card{background:rgba(255,255,255,.1);border:2px solid {{ ac }};
+                    border-radius:24px;padding:60px 80px;text-align:center}
+              h1{font-size:3rem;font-weight:800}
+              .cnt{font-size:5rem;font-weight:900;color:{{ ac }};margin:20px 0}
+              .btn{background:{{ ac }};color:#fff;border:none;padding:16px 50px;
+                   font-size:1.3rem;font-weight:700;border-radius:50px;cursor:pointer}
+              .status{font-size:.75rem;margin-top:16px;padding:8px 16px;
+                      border-radius:8px;display:inline-block;
+                      background: {{ "rgba(0,200,0,.2)" if redis_ok else "rgba(200,0,0,.2)" }}}
+              .info{margin-top:16px;font-size:.75rem;opacity:.5;font-family:monospace}
+              </style></head>
+              <body><div class="card">
+              <h1>🔴 {{ nm }}</h1>
+              <p style="opacity:.6;margin:8px 0 30px">CloudVibe Internal Voting</p>
+              <div class="cnt">{{ vc }}</div>
+              <p style="opacity:.6;margin-bottom:20px">votes</p>
+              <form method="POST" action="/vote">
+              <button class="btn" type="submit">CAST VOTE</button></form>
+              <div class="status">
+                Redis: {{ "✅ Connected" if redis_ok else "❌ Disconnected (in-memory)" }}
+              </div>
+              <div class="info">Pod: {{ pn }} | NS: {{ ns }}</div>
+              </div></body></html>
+              """
+
+              @app.route("/")
+              def index():
+                  vc = 0
+                  if REDIS_OK and r:
+                      try:
+                          vc = int(r.get(VOTE_KEY) or 0)
+                      except:
+                          pass
+                  return render_template_string(TEMPLATE, nm=TEAM_NAME, bg=BG_COLOR,
+                      ac=ACCENT, vc=vc, redis_ok=REDIS_OK,
+                      pn=os.environ.get("HOSTNAME","?"),
+                      ns=os.environ.get("POD_NAMESPACE","?"))
+
+              @app.route("/vote", methods=["POST"])
+              def vote():
+                  if REDIS_OK and r:
+                      try:
+                          r.incr(VOTE_KEY)
+                      except:
+                          pass
+                  return redirect("/")
+
+              @app.route("/healthz")
+              def health():
+                  return {"status": "ok", "redis": REDIS_OK}, 200
+
+              if __name__ == "__main__":
+                  app.run(host="0.0.0.0", port=5000)
+              PYEOF
+              gunicorn --bind 0.0.0.0:5000 --workers 2 app:app
+          ports:
+            - containerPort: 5000
+              name: http
+          envFrom:
+            - configMapRef:
+                name: red-team-config
+          env:
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: redis-secret
+                  key: redis-password
+                  optional: true
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "300m"
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 5000
+            initialDelaySeconds: 45
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 5000
+            initialDelaySeconds: 20
+            periodSeconds: 5
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values: [votevibe-red]
+                topologyKey: kubernetes.io/hostname

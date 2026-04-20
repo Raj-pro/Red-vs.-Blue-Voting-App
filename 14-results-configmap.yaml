@@ -1,0 +1,18 @@
+# 14-results-configmap.yaml
+# Purpose: Config for the scoreboard/results dashboard app
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: results-config
+  namespace: voting-system
+  labels:
+    app: results-dashboard
+data:
+  APP_TITLE:    "VoteVibe Live Results"
+  BLUE_VOTE_KEY: "blue_votes"
+  RED_VOTE_KEY:  "red_votes"
+  REDIS_HOST:    "redis-service"
+  REDIS_PORT:    "6379"
+  REFRESH_RATE:  "3"             # Auto-refresh every 3 seconds
+  # Inline HTML template — stored in ConfigMap for easy modification
+  DASHBOARD_TITLE: "🏆 CloudVibe VoteVibe — Live Scoreboard"

@@ -1,0 +1,23 @@
+# 04-blue-service.yaml
+# Purpose: Expose the Blue Team app via NodePort (accessible at localhost:30001)
+apiVersion: v1
+kind: Service
+metadata:
+  name: blue-team-service
+  namespace: voting-system
+  labels:
+    app: votevibe-blue
+    tier: frontend
+  annotations:
+    description: "NodePort service for Blue Team voting UI"
+spec:
+  type: NodePort
+  selector:
+    app: votevibe-blue          # Must match Deployment pod labels
+  ports:
+    - name: http
+      protocol: TCP
+      port: 80                  # Service port (internal cluster)
+      targetPort: 5000          # Container port
+      nodePort: 30001           # External port (range: 30000-32767)
+  sessionAffinity: ClientIP     # Sticky sessions — same client hits same pod

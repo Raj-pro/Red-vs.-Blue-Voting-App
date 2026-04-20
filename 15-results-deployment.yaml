@@ -1,0 +1,173 @@
+# 15-results-deployment.yaml
+# Purpose: A live scoreboard showing Red vs. Blue vote counts
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: results-deployment
+  namespace: voting-system
+  labels:
+    app: results-dashboard
+    tier: frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: results-dashboard
+  template:
+    metadata:
+      labels:
+        app: results-dashboard
+        tier: frontend
+    spec:
+      containers:
+        - name: results
+          image: python:3.11-slim
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              pip install flask redis --quiet &&
+              cat > /results.py << 'PYEOF'
+              import os, time
+              from flask import Flask, render_template_string
+              import redis as redislib
+
+              app = Flask(__name__)
+              REDIS_HOST = os.environ.get("REDIS_HOST", "redis-service")
+              REDIS_PORT = int(os.environ.get("REDIS_PORT", 6379))
+              REDIS_PASS = os.environ.get("REDIS_PASSWORD", None)
+              BLUE_KEY   = os.environ.get("BLUE_VOTE_KEY", "blue_votes")
+              RED_KEY    = os.environ.get("RED_VOTE_KEY", "red_votes")
+              REFRESH    = os.environ.get("REFRESH_RATE", "3")
+
+              try:
+                  r = redislib.Redis(host=REDIS_HOST, port=REDIS_PORT,
+                                     password=REDIS_PASS, decode_responses=True,
+                                     socket_connect_timeout=3)
+                  r.ping(); REDIS_OK = True
+              except:
+                  r = None; REDIS_OK = False
+
+              TEMPLATE = """
+              <!DOCTYPE html><html><head>
+              <meta charset="UTF-8">
+              <meta http-equiv="refresh" content="{{ refresh }}">
+              <title>VoteVibe Results</title>
+              <style>
+              *{margin:0;padding:0;box-sizing:border-box}
+              body{background:#111;font-family:sans-serif;color:white;min-height:100vh;
+                   display:flex;flex-direction:column;align-items:center;justify-content:center;
+                   padding:40px 20px}
+              h1{font-size:2.5rem;font-weight:900;text-align:center;margin-bottom:8px;
+                 background:linear-gradient(90deg,#42a5f5,#ef5350);
+                 -webkit-background-clip:text;-webkit-text-fill-color:transparent}
+              .subtitle{opacity:.5;margin-bottom:50px;text-align:center}
+              .scoreboard{display:flex;gap:30px;width:100%;max-width:800px}
+              .team{flex:1;border-radius:20px;padding:40px;text-align:center;
+                    position:relative;overflow:hidden}
+              .blue-card{background:linear-gradient(135deg,#1a237e,#1565c0);
+                         border:2px solid #42a5f5}
+              .red-card{background:linear-gradient(135deg,#7f0000,#b71c1c);
+                        border:2px solid #ef5350}
+              .team-icon{font-size:3rem;margin-bottom:10px}
+              .team-name{font-size:1.4rem;font-weight:700;margin-bottom:20px}
+              .vote-count{font-size:5rem;font-weight:900;line-height:1}
+              .vote-label{opacity:.6;margin-top:8px;font-size:.9rem}
+              .bar-container{width:100%;background:rgba(0,0,0,.3);border-radius:8px;
+                             height:12px;margin-top:20px;overflow:hidden}
+              .bar-blue{background:#42a5f5;height:100%;border-radius:8px;
+                        transition:width .5s ease}
+              .bar-red{background:#ef5350;height:100%;border-radius:8px;
+                       transition:width .5s ease}
+              .winner-badge{background:gold;color:#000;padding:4px 16px;
+                            border-radius:20px;font-weight:700;font-size:.85rem;
+                            margin-top:12px;display:inline-block}
+              .footer{margin-top:40px;opacity:.4;font-size:.8rem;text-align:center}
+              .total{margin-bottom:30px;font-size:1.1rem;opacity:.6}
+              </style></head><body>
+              <h1>🏆 VoteVibe Live Results</h1>
+              <p class="subtitle">CloudVibe Tech Internal Polling System</p>
+              <p class="total">Total Votes Cast: <strong>{{ total }}</strong></p>
+              <div class="scoreboard">
+                <div class="team blue-card">
+                  <div class="team-icon">🔵</div>
+                  <div class="team-name">Blue Team</div>
+                  <div class="vote-count">{{ blue }}</div>
+                  <div class="vote-label">votes</div>
+                  <div class="bar-container">
+                    <div class="bar-blue" style="width:{{ blue_pct }}%"></div>
+                  </div>
+                  <div>{{ "%.1f"|format(blue_pct) }}%</div>
+                  {% if blue > red %}<div class="winner-badge">👑 LEADING</div>{% endif %}
+                </div>
+                <div class="team red-card">
+                  <div class="team-icon">🔴</div>
+                  <div class="team-name">Red Team</div>
+                  <div class="vote-count">{{ red }}</div>
+                  <div class="vote-label">votes</div>
+                  <div class="bar-container">
+                    <div class="bar-red" style="width:{{ red_pct }}%"></div>
+                  </div>
+                  <div>{{ "%.1f"|format(red_pct) }}%</div>
+                  {% if red > blue %}<div class="winner-badge">👑 LEADING</div>{% endif %}
+                </div>
+              </div>
+              <div class="footer">
+                Auto-refreshes every {{ refresh }}s |
+                Redis: {{ "✅ Connected" if redis_ok else "❌ Down" }} |
+                Pod: {{ pod }}
+              </div>
+              </body></html>
+              """
+
+              @app.route("/")
+              def index():
+                  blue = red = 0
+                  if REDIS_OK and r:
+                      try:
+                          blue = int(r.get(BLUE_KEY) or 0)
+                          red  = int(r.get(RED_KEY) or 0)
+                      except: pass
+                  total = blue + red
+                  blue_pct = (blue/total*100) if total > 0 else 50
+                  red_pct  = (red/total*100)  if total > 0 else 50
+                  return render_template_string(TEMPLATE,
+                      blue=blue, red=red, total=total,
+                      blue_pct=blue_pct, red_pct=red_pct,
+                      redis_ok=REDIS_OK, refresh=REFRESH,
+                      pod=os.environ.get("HOSTNAME","?"))
+
+              @app.route("/healthz")
+              def health(): return {"status":"ok"},200
+
+              if __name__ == "__main__":
+                  app.run(host="0.0.0.0", port=5000)
+              PYEOF
+              python /results.py
+          ports:
+            - containerPort: 5000
+          envFrom:
+            - configMapRef:
+                name: results-config
+          env:
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: redis-secret
+                  key: redis-password
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "128Mi"
+              cpu: "200m"
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 5000
+            initialDelaySeconds: 30
+            periodSeconds: 10

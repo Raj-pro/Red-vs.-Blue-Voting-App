@@ -1,0 +1,13 @@
+# 01-namespace.yaml
+# Purpose: Isolate all VoteVibe resources in their own namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: voting-system
+  labels:
+    project: votevibe
+    team: cloudvibe-devops
+    environment: workshop
+  annotations:
+    description: "CloudVibe VoteVibe polling application namespace"
+    owner: "platform-team@cloudvibe.io"

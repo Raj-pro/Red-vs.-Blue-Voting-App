@@ -1,0 +1,20 @@
+# 07-red-configmap.yaml
+# Purpose: Mirror of blue-team-config but for Red Team
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: red-team-config
+  namespace: voting-system
+  labels:
+    app: votevibe-red
+    team: red
+data:
+  TEAM_COLOR:   "red"
+  TEAM_NAME:    "Red Team"
+  BG_HEX:       "#7f0000"
+  ACCENT_HEX:   "#ef5350"
+  APP_PORT:     "5000"
+  LOG_LEVEL:    "INFO"
+  REDIS_HOST:   "redis-service"      # Kubernetes DNS name of Redis ClusterIP service
+  REDIS_PORT:   "6379"
+  VOTE_KEY:     "red_votes"

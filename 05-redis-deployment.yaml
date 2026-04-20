@@ -1,0 +1,60 @@
+# 05-redis-deployment.yaml
+# Purpose: Deploy Redis as the vote storage backend
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis-deployment
+  namespace: voting-system
+  labels:
+    app: redis
+    tier: backend
+    component: cache
+spec:
+  replicas: 1                   # Redis is stateful — single instance for now
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+        tier: backend
+    spec:
+      containers:
+        - name: redis
+          image: redis:7.2-alpine
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 6379
+              name: redis
+          command: ["redis-server"]
+          args:
+            - "--appendonly"
+            - "yes"
+            - "--save"
+            - "60 1"
+          # Day 2 runs Redis without auth so liveness/readiness probes work
+          # and clients can connect immediately. Day 3 reintroduces auth via Secret.
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "128Mi"
+              cpu: "200m"
+          livenessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          readinessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          volumeMounts:
+            - name: redis-data
+              mountPath: /data               # Redis persistence path
+      volumes:
+        - name: redis-data
+          emptyDir: {}                       # Temporary — replaced with PVC on Day 3

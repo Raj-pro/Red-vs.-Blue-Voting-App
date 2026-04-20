@@ -1,0 +1,22 @@
+# 11-redis-pv.yaml
+# Purpose: Define physical storage for Redis data
+# For Docker Desktop: Using hostPath (local storage inside the Docker VM)
+# In production: Use AWS EBS CSI driver with StorageClass
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: redis-pv
+  labels:
+    type: local
+    app: redis
+    purpose: vote-storage
+spec:
+  storageClassName: manual
+  capacity:
+    storage: 2Gi
+  accessModes:
+    - ReadWriteOnce          # Single node read-write
+  persistentVolumeReclaimPolicy: Retain   # Don't delete data when PVC released
+  hostPath:
+    path: "/tmp/redis-votevibe"           # Directory inside Docker Desktop VM
+    type: DirectoryOrCreate

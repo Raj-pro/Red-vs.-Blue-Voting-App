@@ -1,0 +1,24 @@
+# 02-blue-configmap.yaml
+# Purpose: Store non-sensitive Blue Team configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: blue-team-config
+  namespace: voting-system
+  labels:
+    app: votevibe-blue
+    team: blue
+data:
+  # Team identity
+  TEAM_COLOR: "blue"
+  TEAM_NAME:  "Blue Team"
+  # Visual theme
+  BG_HEX:     "#1a237e"
+  ACCENT_HEX: "#42a5f5"
+  # App settings
+  APP_PORT:   "5000"
+  LOG_LEVEL:  "INFO"
+  # Redis settings (used from Day 3 onward)
+  REDIS_HOST: "redis-service"
+  REDIS_PORT: "6379"
+  VOTE_KEY:   "blue_votes"
